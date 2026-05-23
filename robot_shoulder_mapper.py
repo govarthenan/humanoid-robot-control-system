@@ -11,7 +11,7 @@ def vec(a, b):
 
 
 def dot(u, v):
-    return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]
+    return u[0] * v[0] + u[1] * v[1] + u[2] * v[2]
 
 
 def norm(v):
@@ -22,7 +22,7 @@ def unit(v):
     n = norm(v)
     if n == 0:
         return [0.0, 0.0, 0.0]
-    return [v[0]/n, v[1]/n, v[2]/n]
+    return [v[0] / n, v[1] / n, v[2] / n]
 
 
 def clamp(x, lo, hi):
@@ -41,7 +41,7 @@ def angle_between(u, v):
 def project_onto_plane(v, plane_normal):
     n = unit(plane_normal)
     d = dot(v, n)
-    return [v[0] - d*n[0], v[1] - d*n[1], v[2] - d*n[2]]
+    return [v[0] - d * n[0], v[1] - d * n[1], v[2] - d * n[2]]
 
 
 def signed_angle_on_plane(v1, v2, plane_normal):
@@ -50,11 +50,7 @@ def signed_angle_on_plane(v1, v2, plane_normal):
     if norm(a) == 0 or norm(b) == 0:
         return 0.0
 
-    cross = [
-        a[1]*b[2] - a[2]*b[1],
-        a[2]*b[0] - a[0]*b[2],
-        a[0]*b[1] - a[1]*b[0]
-    ]
+    cross = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
     s = dot(cross, unit(plane_normal))
     c = clamp(dot(a, b), -1.0, 1.0)
     return math.degrees(math.atan2(s, c))
@@ -74,23 +70,23 @@ def get_xyz(world_landmarks, idx):
 
 def shoulder_metrics(side_name, shoulder, elbow, wrist, hip, opposite_shoulder):
     # Body reference axes
-    torso_down = vec(shoulder, hip)                # shoulder -> hip
+    torso_down = vec(shoulder, hip)  # shoulder -> hip
     shoulder_line = vec(shoulder, opposite_shoulder)  # shoulder -> opposite shoulder
-    upper_arm = vec(shoulder, elbow)               # shoulder -> elbow
-    forearm = vec(elbow, wrist)                    # elbow -> wrist
+    upper_arm = vec(shoulder, elbow)  # shoulder -> elbow
+    forearm = vec(elbow, wrist)  # elbow -> wrist
 
     # Approx body forward axis from torso and shoulder line
     # right-hand-like body frame proxy
     body_forward = [
-        shoulder_line[1]*torso_down[2] - shoulder_line[2]*torso_down[1],
-        shoulder_line[2]*torso_down[0] - shoulder_line[0]*torso_down[2],
-        shoulder_line[0]*torso_down[1] - shoulder_line[1]*torso_down[0]
+        shoulder_line[1] * torso_down[2] - shoulder_line[2] * torso_down[1],
+        shoulder_line[2] * torso_down[0] - shoulder_line[0] * torso_down[2],
+        shoulder_line[0] * torso_down[1] - shoulder_line[1] * torso_down[0],
     ]
 
     # 1) Elbow flexion/extension
     elbow_flex = angle_between(
-        [shoulder[0]-elbow[0], shoulder[1]-elbow[1], shoulder[2]-elbow[2]],
-        [wrist[0]-elbow[0], wrist[1]-elbow[1], wrist[2]-elbow[2]]
+        [shoulder[0] - elbow[0], shoulder[1] - elbow[1], shoulder[2] - elbow[2]],
+        [wrist[0] - elbow[0], wrist[1] - elbow[1], wrist[2] - elbow[2]],
     )
 
     # 2) Shoulder abduction/adduction
@@ -133,9 +129,8 @@ with mp_pose.Pose(
     model_complexity=1,
     enable_segmentation=False,
     min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+    min_tracking_confidence=0.5,
 ) as pose:
-
     while cap.isOpened():
         ok, frame = cap.read()
         if not ok:
@@ -147,11 +142,7 @@ with mp_pose.Pose(
         results = pose.process(image_rgb)
 
         if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame,
-                results.pose_landmarks,
-                mp_pose.POSE_CONNECTIONS
-            )
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
         if results.pose_world_landmarks and results.pose_landmarks:
             wlm = results.pose_world_landmarks.landmark
@@ -180,7 +171,7 @@ with mp_pose.Pose(
                 mp_pose.PoseLandmark.LEFT_WRIST.value,
                 mp_pose.PoseLandmark.RIGHT_SHOULDER.value,
                 mp_pose.PoseLandmark.RIGHT_ELBOW.value,
-                mp_pose.PoseLandmark.RIGHT_WRIST.value
+                mp_pose.PoseLandmark.RIGHT_WRIST.value,
             ]:
                 p = ilm[idx]
                 x, y = int(p.x * w), int(p.y * h)
@@ -208,10 +199,7 @@ with mp_pose.Pose(
             ]
 
             for line in lines:
-                cv2.putText(
-                    frame, line, (20, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2
-                )
+                cv2.putText(frame, line, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
                 y += 24
 
             print(

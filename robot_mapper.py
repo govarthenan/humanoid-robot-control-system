@@ -91,9 +91,8 @@ with mp_pose.Pose(
     model_complexity=1,
     enable_segmentation=False,
     min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+    min_tracking_confidence=0.5,
 ) as pose:
-
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
@@ -107,11 +106,7 @@ with mp_pose.Pose(
         results = pose.process(image_rgb)
 
         if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame,
-                results.pose_landmarks,
-                mp_pose.POSE_CONNECTIONS
-            )
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
             h, w, _ = frame.shape
             lm = results.pose_landmarks.landmark
@@ -174,26 +169,58 @@ with mp_pose.Pose(
             # -----------------------------
             # SHOW HUMAN ANGLES
             # -----------------------------
-            cv2.putText(frame, f"L Elbow Human: {left_elbow_human}", (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-            cv2.putText(frame, f"R Elbow Human: {right_elbow_human}", (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-            cv2.putText(frame, f"L Shoulder Human: {left_shoulder_human}", (20, 100),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-            cv2.putText(frame, f"R Shoulder Human: {right_shoulder_human}", (20, 130),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            cv2.putText(
+                frame, f"L Elbow Human: {left_elbow_human}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+            )
+            cv2.putText(
+                frame, f"R Elbow Human: {right_elbow_human}", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+            )
+            cv2.putText(
+                frame,
+                f"L Shoulder Human: {left_shoulder_human}",
+                (20, 100),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 0),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"R Shoulder Human: {right_shoulder_human}",
+                (20, 130),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 0),
+                2,
+            )
 
             # -----------------------------
             # SHOW ROBOT ANGLES
             # -----------------------------
-            cv2.putText(frame, f"L_ELBOW_SERVO: {left_elbow_robot}", (20, 190),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-            cv2.putText(frame, f"R_ELBOW_SERVO: {right_elbow_robot}", (20, 220),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-            cv2.putText(frame, f"L_SHOULDER_SERVO: {left_shoulder_robot}", (20, 250),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-            cv2.putText(frame, f"R_SHOULDER_SERVO: {right_shoulder_robot}", (20, 280),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
+            cv2.putText(
+                frame, f"L_ELBOW_SERVO: {left_elbow_robot}", (20, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2
+            )
+            cv2.putText(
+                frame, f"R_ELBOW_SERVO: {right_elbow_robot}", (20, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2
+            )
+            cv2.putText(
+                frame,
+                f"L_SHOULDER_SERVO: {left_shoulder_robot}",
+                (20, 250),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (0, 255, 0),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"R_SHOULDER_SERVO: {right_shoulder_robot}",
+                (20, 280),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (0, 255, 0),
+                2,
+            )
 
             # Also print robot values in Terminal for later use
             print(

@@ -12,11 +12,13 @@ FACE_STATE_FILE = BASE / "face_state.txt"
 
 W, H = 640, 360
 
+
 def read_face():
     try:
         return FACE_STATE_FILE.read_text().strip() or "neutral"
     except Exception:
         return "neutral"
+
 
 def draw_face(face, t):
     frame = np.zeros((H, W, 3), dtype=np.uint8)
@@ -32,17 +34,20 @@ def draw_face(face, t):
     cv2.ellipse(frame, (cx, cy), (130, 120), 0, 0, 360, (65, 55, 45), 4)
 
     # hair
-    hair_pts = np.array([
-        [cx - 115, cy - 95],
-        [cx - 85, cy - 135],
-        [cx - 35, cy - 85],
-        [cx,      cy - 135],
-        [cx + 45,  cy - 90],
-        [cx + 95,  cy - 130],
-        [cx + 125, cy - 70],
-        [cx + 110, cy - 25],
-        [cx - 110, cy - 25]
-    ], np.int32)
+    hair_pts = np.array(
+        [
+            [cx - 115, cy - 95],
+            [cx - 85, cy - 135],
+            [cx - 35, cy - 85],
+            [cx, cy - 135],
+            [cx + 45, cy - 90],
+            [cx + 95, cy - 130],
+            [cx + 125, cy - 70],
+            [cx + 110, cy - 25],
+            [cx - 110, cy - 25],
+        ],
+        np.int32,
+    )
     cv2.fillPoly(frame, [hair_pts], (18, 16, 28))
 
     blink = math.sin(t * 4.5) > 0.96
@@ -122,10 +127,10 @@ def draw_face(face, t):
     else:
         cv2.line(frame, (cx - 35, cy + 55), (cx + 35, cy + 55), (255, 255, 255), 4)
 
-    cv2.putText(frame, face.upper(), (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 255, 180), 3)
+    cv2.putText(frame, face.upper(), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 255, 180), 3)
 
     return frame
+
 
 def generate():
     while True:
@@ -137,10 +142,10 @@ def generate():
             continue
 
         jpg = buffer.tobytes()
-        yield (b"--frame\r\n"
-               b"Content-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n")
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n")
 
         time.sleep(1 / 15)
+
 
 @app.route("/")
 def home():
@@ -161,9 +166,11 @@ def home():
     </html>
     """
 
+
 @app.route("/stream")
 def stream():
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, threaded=True)

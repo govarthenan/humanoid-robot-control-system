@@ -5,6 +5,7 @@ import math
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
+
 def calculate_angle(a, b, c):
     ax, ay = a
     bx, by = b
@@ -25,6 +26,7 @@ def calculate_angle(a, b, c):
     angle = math.degrees(math.acos(cos_angle))
     return int(angle)
 
+
 cap = cv2.VideoCapture(0)
 
 with mp_pose.Pose(
@@ -32,9 +34,8 @@ with mp_pose.Pose(
     model_complexity=1,
     enable_segmentation=False,
     min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+    min_tracking_confidence=0.5,
 ) as pose:
-
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
@@ -45,11 +46,7 @@ with mp_pose.Pose(
         results = pose.process(image_rgb)
 
         if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame,
-                results.pose_landmarks,
-                mp_pose.POSE_CONNECTIONS
-            )
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
             h, w, _ = frame.shape
             landmarks = results.pose_landmarks.landmark
@@ -77,25 +74,9 @@ with mp_pose.Pose(
             left_angle = calculate_angle(l_shoulder_point, l_elbow_point, l_wrist_point)
 
             # Show text
-            cv2.putText(
-                frame,
-                f"Right elbow: {right_angle}",
-                (30, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 255, 0),
-                2
-            )
+            cv2.putText(frame, f"Right elbow: {right_angle}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-            cv2.putText(
-                frame,
-                f"Left elbow: {left_angle}",
-                (30, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 0),
-                2
-            )
+            cv2.putText(frame, f"Left elbow: {left_angle}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
             # Right arm dots
             cv2.circle(frame, r_shoulder_point, 8, (255, 0, 0), -1)
@@ -115,6 +96,6 @@ with mp_pose.Pose(
 cap.release()
 cv2.destroyAllWindows()
 
-#cd ~/mediapipe_robot
-#source venv/bin/activate
-#python3 test_pose.py
+# cd ~/mediapipe_robot
+# source venv/bin/activate
+# python3 test_pose.py
