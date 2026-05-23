@@ -1,16 +1,21 @@
-import cv2
-import mediapipe as mp
 import math
 import socket
 from pathlib import Path
 
+import cv2
+import mediapipe as mp
+from zone_filter import apply_gray_overlay, compute_zone_bounds, crop_to_zone, draw_zone_lines
+
 FACE_STATE_FILE = Path.home() / "mediapipe_robot" / "face_state.txt"
+
 
 def save_face(face_name):
     try:
         FACE_STATE_FILE.write_text(face_name)
     except Exception:
         pass
+
+
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
@@ -30,25 +35,22 @@ print("Connected to Raspberry Pi")
 CALIBRATION = {
     "HEAD_YAW": {"human_min": -20, "human_max": 20, "robot_min": 50, "robot_max": 140},
     "HEAD_PITCH": {"human_min": -20, "human_max": 20, "robot_min": 130, "robot_max": 70},
-
     "L_ELBOW": {"human_min": 75, "human_max": 145, "robot_min": 135, "robot_max": 0},
     "L_ABD": {"human_min": 10, "human_max": 90, "robot_min": 25, "robot_max": 140},
     "L_FLEX": {"human_min": -140, "human_max": 90, "robot_min": 50, "robot_max": 170},
     "L_ROT": {"human_min": -20, "human_max": 90, "robot_min": 0, "robot_max": 180},
-
     "R_ELBOW": {"human_min": 75, "human_max": 145, "robot_min": 20, "robot_max": 180},
     "R_ABD": {"human_min": 10, "human_max": 100, "robot_min": 150, "robot_max": 40},
     "R_FLEX": {"human_min": -140, "human_max": 90, "robot_min": 180, "robot_max": 60},
     "R_ROT": {"human_min": 10, "human_max": 110, "robot_min": 180, "robot_max": 40},
-
     "L_HIP": {"human_min": -70, "human_max": 70, "robot_min": 80, "robot_max": 150},
     "L_KNEE": {"human_min": 45, "human_max": 170, "robot_min": 100, "robot_max": 0},
     "L_ANKLE": {"human_min": 70, "human_max": 155, "robot_min": 100, "robot_max": 180},
-
     "R_HIP": {"human_min": -70, "human_max": 70, "robot_min": 30, "robot_max": 100},
     "R_KNEE": {"human_min": 45, "human_max": 170, "robot_min": 80, "robot_max": 180},
     "R_ANKLE": {"human_min": 70, "human_max": 155, "robot_min": 0, "robot_max": 60},
 }
+
 
 # =========================
 # HELPERS
@@ -56,35 +58,34 @@ CALIBRATION = {
 def clamp(x, lo, hi):
     return max(lo, min(hi, x))
 
+
 def map_range(v, a, b, c, d):
     v = clamp(v, a, b)
     return int((v - a) * (d - c) / (b - a) + c)
 
+
 def calibrate(name, val):
     c = CALIBRATION[name]
     return map_range(val, c["human_min"], c["human_max"], c["robot_min"], c["robot_max"])
+
 
 def smooth(name, val, alpha=0.3):
     if name not in smooth.prev:
         smooth.prev[name] = val
     smooth.prev[name] = int(alpha * val + (1 - alpha) * smooth.prev[name])
     return smooth.prev[name]
+
+
 smooth.prev = {}
+
 
 def draw_mark(frame, landmark, idx, color, label):
     h, w = frame.shape[:2]
     x = int(landmark[idx].x * w)
     y = int(landmark[idx].y * h)
     cv2.circle(frame, (x, y), 6, color, -1)
-    cv2.putText(
-        frame,
-        label,
-        (x + 8, y - 8),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,
-        color,
-        2
-    )
+    cv2.putText(frame, label, (x + 8, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
 
 # =========================
 # ANGLE
@@ -97,8 +98,11 @@ def angle(a, b, c):
     if mag == 0:
         return 0
     return math.degrees(math.acos(clamp(dot / mag, -1, 1)))
+
+
 def dist(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
+
 
 def angle_by_distance(a, b, c):
     ab = dist(a, b)
@@ -111,6 +115,8 @@ def angle_by_distance(a, b, c):
     cos_val = (ab * ab + bc * bc - ac * ac) / (2 * ab * bc)
     cos_val = clamp(cos_val, -1, 1)
     return math.degrees(math.acos(cos_val))
+
+
 # =========================
 # ROTATION BASE
 # =========================
@@ -127,6 +133,7 @@ def arm_rot(shoulder, elbow, wrist):
 
     return clamp(angle_val / 2, -90, 90)
 
+
 # Stronger right ABD signal
 def right_abd_signal(shoulder, elbow, wrist):
     # Blend elbow + wrist relative to shoulder so movement is more visible.
@@ -136,6 +143,8 @@ def right_abd_signal(shoulder, elbow, wrist):
     # 0 when arm is hanging down, bigger when arm moves sideways.
     raw = math.degrees(math.atan2(vx, vy))
     return clamp(raw, -90, 90)
+
+
 def get_face_expression(lm):
     nose = lm[0]
 
@@ -173,6 +182,8 @@ def get_face_expression(lm):
         return "shy"
 
     return "neutral"
+
+
 # =========================
 # CAMERA
 # =========================
@@ -186,11 +197,20 @@ with mp_pose.Pose() as pose:
 
         frame = cv2.flip(frame, 1)
         frame = cv2.resize(frame, (960, 720))
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w = frame.shape[:2]
+        x1, x2 = compute_zone_bounds(w)
+
+        middle = crop_to_zone(frame, x1, x2)
+        rgb = cv2.cvtColor(middle, cv2.COLOR_BGR2RGB)
 
         res = pose.process(rgb)
 
         if not res.pose_landmarks:
+            apply_gray_overlay(frame, x1, x2)
+            draw_zone_lines(frame, x1, x2)
+            cv2.imshow("Robot", frame)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
             continue
 
         lm = res.pose_landmarks.landmark
@@ -199,28 +219,30 @@ with mp_pose.Pose() as pose:
         # facial expression
         final["FACE"] = get_face_expression(lm)
         save_face(final["FACE"])
-        # Draw skeleton + key dots
+        # Draw skeleton + key dots on the middle crop, then paste back
 
-        mp_drawing.draw_landmarks(frame, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+        mp_drawing.draw_landmarks(middle, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-        draw_mark(frame, lm, 0,  (0, 255, 255), "N")
-        draw_mark(frame, lm, 11, (255, 0, 0), "LS")
-        draw_mark(frame, lm, 13, (255, 0, 0), "LE")
-        draw_mark(frame, lm, 15, (255, 0, 0), "LW")
-        draw_mark(frame, lm, 12, (0, 0, 255), "RS")
-        draw_mark(frame, lm, 14, (0, 0, 255), "RE")
-        draw_mark(frame, lm, 16, (0, 0, 255), "RW")
-        draw_mark(frame, lm, 23, (0, 200, 200), "LH")
-        draw_mark(frame, lm, 24, (200, 200, 0), "RH")
-        draw_mark(frame, lm, 23, (0, 200, 200), "LH")
-        draw_mark(frame, lm, 25, (0, 200, 200), "LK")
-        draw_mark(frame, lm, 27, (0, 200, 200), "LA")
-        draw_mark(frame, lm, 31, (0, 200, 200), "LF")
+        draw_mark(middle, lm, 0, (0, 255, 255), "N")
+        draw_mark(middle, lm, 11, (255, 0, 0), "LS")
+        draw_mark(middle, lm, 13, (255, 0, 0), "LE")
+        draw_mark(middle, lm, 15, (255, 0, 0), "LW")
+        draw_mark(middle, lm, 12, (0, 0, 255), "RS")
+        draw_mark(middle, lm, 14, (0, 0, 255), "RE")
+        draw_mark(middle, lm, 16, (0, 0, 255), "RW")
+        draw_mark(middle, lm, 23, (0, 200, 200), "LH")
+        draw_mark(middle, lm, 25, (0, 200, 200), "LK")
+        draw_mark(middle, lm, 27, (0, 200, 200), "LA")
+        draw_mark(middle, lm, 31, (0, 200, 200), "LF")
 
-        draw_mark(frame, lm, 24, (200, 200, 0), "RH")
-        draw_mark(frame, lm, 26, (200, 200, 0), "RK")
-        draw_mark(frame, lm, 28, (200, 200, 0), "RA")
-        draw_mark(frame, lm, 32, (200, 200, 0), "RF")
+        draw_mark(middle, lm, 24, (200, 200, 0), "RH")
+        draw_mark(middle, lm, 26, (200, 200, 0), "RK")
+        draw_mark(middle, lm, 28, (200, 200, 0), "RA")
+        draw_mark(middle, lm, 32, (200, 200, 0), "RF")
+
+        frame[:, x1:x2] = middle
+        apply_gray_overlay(frame, x1, x2)
+        draw_zone_lines(frame, x1, x2)
 
         # ===== HEAD =====
         nose = lm[0]
@@ -239,7 +261,7 @@ with mp_pose.Pose() as pose:
         final["L_ELBOW"] = calibrate("L_ELBOW", angle(ls, lelb, lw))
         final["L_FLEX"] = calibrate("L_FLEX", (lw.y - ls.y) * 200)
         # ===== LEFT ABD FIX =====
-        l_abd_val = angle(lelb, ls, lm[23])   # elbow-shoulder-hip
+        l_abd_val = angle(lelb, ls, lm[23])  # elbow-shoulder-hip
         final["L_ABD"] = calibrate("L_ABD", l_abd_val)
 
         l_rot_val = arm_rot(ls, lelb, lw)
@@ -270,9 +292,9 @@ with mp_pose.Pose() as pose:
 
         # normalize
         if r_rot_val > 180:
-           r_rot_val -= 360
+            r_rot_val -= 360
         if r_rot_val < -180:
-           r_rot_val += 360
+            r_rot_val += 360
 
         #  IMPORTANT: amplify strongly
         r_rot_val *= 3.5
@@ -282,9 +304,9 @@ with mp_pose.Pose() as pose:
 
         # stabilize
         if "R_ROT" not in smooth.prev:
-         smooth.prev["R_ROT"] = r_rot_val
+            smooth.prev["R_ROT"] = r_rot_val
 
-         smooth.prev["R_ROT"] = 0.6 * smooth.prev["R_ROT"] + 0.4 * r_rot_val
+            smooth.prev["R_ROT"] = 0.6 * smooth.prev["R_ROT"] + 0.4 * r_rot_val
 
         # map to servo
         final["R_ROT"] = calibrate("R_ROT", smooth.prev["R_ROT"])
@@ -297,20 +319,11 @@ with mp_pose.Pose() as pose:
 
         l_hip_val = (l_knee.y - l_hip.y) * 300
 
-        final["L_HIP"] = calibrate(
-            "L_HIP",
-            l_hip_val
-        )
+        final["L_HIP"] = calibrate("L_HIP", l_hip_val)
 
-        final["L_KNEE"] = calibrate(
-            "L_KNEE",
-            angle_by_distance(l_hip, l_knee, l_ankle)
-        )
+        final["L_KNEE"] = calibrate("L_KNEE", angle_by_distance(l_hip, l_knee, l_ankle))
 
-        final["L_ANKLE"] = calibrate(
-            "L_ANKLE",
-            angle_by_distance(l_knee, l_ankle, l_foot)
-        )
+        final["L_ANKLE"] = calibrate("L_ANKLE", angle_by_distance(l_knee, l_ankle, l_foot))
 
         # ===== RIGHT LEG =====
         r_hip = lm[24]
@@ -320,24 +333,14 @@ with mp_pose.Pose() as pose:
 
         r_hip_val = (r_knee.y - r_hip.y) * 300
 
-        final["R_HIP"] = calibrate(
-            "R_HIP",
-            r_hip_val
-        )
+        final["R_HIP"] = calibrate("R_HIP", r_hip_val)
 
-        final["R_KNEE"] = calibrate(
-            "R_KNEE",
-            angle_by_distance(r_hip, r_knee, r_ankle)
-        )
+        final["R_KNEE"] = calibrate("R_KNEE", angle_by_distance(r_hip, r_knee, r_ankle))
 
-        final["R_ANKLE"] = calibrate(
-            "R_ANKLE",
-            angle_by_distance(r_knee, r_ankle, r_foot)
-        )
+        final["R_ANKLE"] = calibrate("R_ANKLE", angle_by_distance(r_knee, r_ankle, r_foot))
 
         # ===== SMOOTH (others) =====
         for k in final:
-
             # do not smooth FACE text
             if k == "FACE":
                 continue
@@ -359,15 +362,7 @@ with mp_pose.Pose() as pose:
         # ===== DISPLAY =====
         y = 30
         for k, v in final.items():
-            cv2.putText(
-                frame,
-                f"{k}:{v}",
-                (10, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2
-            )
+            cv2.putText(frame, f"{k}:{v}", (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             y += 25
 
         cv2.imshow("Robot", frame)
