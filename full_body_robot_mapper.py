@@ -196,7 +196,6 @@ with mp_pose.Pose() as pose:
             break
 
         frame = cv2.flip(frame, 1)
-        frame = cv2.resize(frame, (960, 720))
         h, w = frame.shape[:2]
         x1, x2 = compute_zone_bounds(w)
 
